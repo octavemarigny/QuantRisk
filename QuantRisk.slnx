@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/QuantRisk.Core/QuantRisk.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/QuantRisk.Core.Tests/QuantRisk.Core.Tests.csproj" />
+  </Folder>
+</Solution>
