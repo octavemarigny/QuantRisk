@@ -67,3 +67,34 @@ Rates and volatility are expressed as decimals:
 ```bash
 dotnet test
 ```
+
+## Analytical Greeks
+
+QuantRisk supports analytical Black-Scholes sensitivities:
+
+- Delta
+- Gamma
+- Vega
+- Theta
+- Rho
+
+### Conventions
+
+| Greek | Convention |
+|---|---|
+| Delta | Price sensitivity per unit change in spot |
+| Gamma | Second derivative with respect to spot |
+| Vega | Price sensitivity per unit change in volatility |
+| Theta | Price sensitivity per year of elapsed time |
+| Rho | Price sensitivity per unit change in interest rate |
+
+Vega and Rho are returned for absolute parameter changes.
+
+For example:
+
+- Vega for a 1% volatility move: `Vega / 100`
+- Rho for a 1 bp rate move: `Rho / 10000`
+- Approximate daily Theta: `Theta / 365`
+
+All Greeks are calculated for a single option unit.
+Position quantities and contract sizes are not yet supported.
