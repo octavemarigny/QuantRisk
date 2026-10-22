@@ -178,4 +178,10 @@ public class BlackScholesPricerTests
         Assert.Throws<ArgumentNullException>(() =>
             _pricer.Price(option, null!));
     }
+    
+    [Fact]
+    public void IntentionalFailure()
+    {
+        Assert.True(false);
+    }
 }
