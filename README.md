@@ -1,5 +1,7 @@
 # QuantRisk
 
+[![QuantRisk CI](https://github.com/octavemarigny/QuantRisk/actions/workflows/ci.yml/badge.svg)](https://github.com/octavemarigny/QuantRisk/actions/workflows/ci.yml)
+
 QuantRisk is a C#/.NET derivatives pricing and risk engine built as a personal software engineering and quantitative finance project.
 
 ## Current status
