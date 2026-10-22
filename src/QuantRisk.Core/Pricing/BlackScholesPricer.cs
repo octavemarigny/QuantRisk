@@ -20,7 +20,7 @@ public sealed class BlackScholesPricer
         var (d1, d2, discountFactor) =
             CalculateTerms(option, marketData);
 
-        return option.Type switch
+        double price = option.Type switch
         {
             OptionType.Call =>
                 spot * Normal.CDF(0.0, 1.0, d1)
@@ -36,6 +36,14 @@ public sealed class BlackScholesPricer
                 nameof(option),
                 "Unsupported option type.")
         };
+        
+        if (!double.IsFinite(price))
+        {
+            throw new ArithmeticException(
+                "Black-Scholes price is not finite.");
+        }
+
+        return price;
     }
 
     public BlackScholesGreeks CalculateGreeks(
@@ -117,6 +125,16 @@ public sealed class BlackScholesPricer
                 nameof(option),
                 "Unsupported option type.")
         };
+        
+        if (!double.IsFinite(delta)
+            || !double.IsFinite(gamma)
+            || !double.IsFinite(vega)
+            || !double.IsFinite(theta)
+            || !double.IsFinite(rho))
+        {
+            throw new ArithmeticException(
+                "Black-Scholes Greeks contain non-finite values.");
+        }
 
         return new BlackScholesGreeks(
             delta,
@@ -125,14 +143,15 @@ public sealed class BlackScholesPricer
             theta,
             rho);
     }
-
+    
+    
     private static (
         double D1,
         double D2,
         double DiscountFactor)
-    CalculateTerms(
-        EuropeanOption option,
-        BlackScholesMarketData marketData)
+        CalculateTerms(
+            EuropeanOption option,
+            BlackScholesMarketData marketData)
     {
         double spot = marketData.Spot;
         double strike = option.Strike;
@@ -143,8 +162,23 @@ public sealed class BlackScholesPricer
         double volatilitySqrtT =
             volatility * Math.Sqrt(maturity);
 
+        if (!double.IsFinite(volatilitySqrtT)
+            || volatilitySqrtT == 0.0)
+        {
+            throw new ArithmeticException(
+                "Black-Scholes volatility term is not representable.");
+        }
+
+        // Avoid overflow or underflow in the spot/strike ratio.
+        double ratio = spot / strike;
+
+        double logMoneyness =
+            ratio > 0.0 && double.IsFinite(ratio)
+                ? Math.Log(ratio)
+                : Math.Log(spot) - Math.Log(strike);
+
         double d1 =
-            (Math.Log(spot / strike)
+            (logMoneyness
              + (rate + 0.5 * volatility * volatility) * maturity)
             / volatilitySqrtT;
 
@@ -152,6 +186,14 @@ public sealed class BlackScholesPricer
 
         double discountFactor =
             Math.Exp(-rate * maturity);
+
+        if (!double.IsFinite(d1)
+            || !double.IsFinite(d2)
+            || !double.IsFinite(discountFactor))
+        {
+            throw new ArithmeticException(
+                "Black-Scholes intermediate terms are not finite.");
+        }
 
         return (d1, d2, discountFactor);
     }

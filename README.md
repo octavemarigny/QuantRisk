@@ -150,3 +150,19 @@ A convergence experiment is included in
 
 The current default spot bump is 0.1% of spot.
 This is a pragmatic choice rather than a globally optimal step.
+
+### Numerical Robustness
+
+The pricing engine rejects non-finite intermediate calculations
+and results using `ArithmeticException`.
+
+Log-moneyness calculations include a fallback to avoid overflow
+and underflow in the spot-to-strike ratio.
+
+The test suite also covers price homogeneity under proportional
+spot and strike scaling.
+
+These checks do not guarantee numerical accuracy for all finite
+inputs. Extreme parameter values, underflow, cancellation and
+normal-distribution tail accuracy remain limitations of the
+current implementation.
