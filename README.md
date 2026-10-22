@@ -98,3 +98,40 @@ For example:
 
 All Greeks are calculated for a single option unit.
 Position quantities and contract sizes are not yet supported.
+
+
+## Finite Difference Greeks
+
+QuantRisk supports numerical Greeks using central finite differences
+and a bump-and-reprice approach.
+
+The numerical calculator uses the Black-Scholes pricing engine
+without relying on analytical Greek formulas.
+
+### Supported sensitivities
+
+- Delta: central first derivative with respect to spot
+- Gamma: central second derivative with respect to spot
+- Vega: central first derivative with respect to volatility
+- Theta: negative central derivative with respect to time to maturity
+- Rho: central first derivative with respect to interest rate
+
+### Default bump sizes
+
+| Parameter | Bump |
+|---|---|
+| Spot | 0.1% of spot |
+| Volatility | min(0.0001, volatility / 2) |
+| Interest rate | 0.0001 |
+| Time to maturity | min(0.001, maturity / 2) |
+
+The calculator uses 9 pricing evaluations to compute all five Greeks.
+
+### Limitations
+
+The bump sizes are currently fixed by the implementation.
+They have been validated on selected test scenarios but are
+not optimized for all possible market conditions.
+
+Numerical errors can increase significantly for extreme parameters,
+very short maturities or very small bump sizes.
