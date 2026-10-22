@@ -135,3 +135,18 @@ not optimized for all possible market conditions.
 
 Numerical errors can increase significantly for extreme parameters,
 very short maturities or very small bump sizes.
+
+### Finite Difference Convergence
+
+The numerical accuracy of central finite differences depends on
+the choice of bump size.
+
+For Gamma, the truncation error is second-order in the spot bump.
+Decreasing the bump initially improves accuracy, but excessively
+small bumps amplify floating-point round-off errors.
+
+A convergence experiment is included in
+`GammaConvergenceTests.cs`.
+
+The current default spot bump is 0.1% of spot.
+This is a pragmatic choice rather than a globally optimal step.
