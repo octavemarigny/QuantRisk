@@ -1,4 +1,3 @@
-
 using QuantRisk.Instruments;
 using QuantRisk.Market;
 using QuantRisk.Pricing;
@@ -116,119 +115,119 @@ public class FiniteDifferenceGreeksCalculatorTests
             0.0,
             tolerance);
     }
-    
-    
-[Theory]
-[InlineData(OptionType.Call, 0.01)]
-[InlineData(OptionType.Put, 0.01)]
-[InlineData(OptionType.Call, 0.005)]
-[InlineData(OptionType.Put, 0.005)]
-public void Calculate_ShortMaturityAndLowVolatility_HasAccurateGammaAndTheta(
-    OptionType type,
-    double volatility)
-{
-    // Arrange
-    var option = new EuropeanOption(
-        type,
-        strike: 100.0,
-        timeToMaturity: 1.0 / 365.0);
-
-    var market = new BlackScholesMarketData(
-        spot: 100.0,
-        riskFreeRate: 0.0,
-        volatility: volatility);
-
-    var calculator = new FiniteDifferenceGreeksCalculator(_pricer);
-
-    BlackScholesGreeks analytical =
-        _pricer.CalculateGreeks(option, market);
-
-    // Act
-    BlackScholesGreeks numerical =
-        calculator.Calculate(option, market);
-
-    // Assert
-    AssertRelativeErrorBelow(
-        analytical.Gamma, numerical.Gamma, 0.003);
-
-    AssertRelativeErrorBelow(
-        analytical.Theta, numerical.Theta, 0.001);
-}
-
-[Theory]
-[InlineData(1e-160)]
-[InlineData(1e160)]
-public void Calculate_UnrepresentableGammaDenominator_ThrowsArithmeticException(
-    double spot)
-{
-    var option = new EuropeanOption(
-        OptionType.Call, spot, 1.0);
-
-    var market = new BlackScholesMarketData(
-        spot, 0.0, 0.20);
-
-    var calculator = new FiniteDifferenceGreeksCalculator(_pricer);
-
-    Assert.Throws<ArithmeticException>(() =>
-        calculator.Calculate(option, market));
-}
-
-[Fact]
-public void Calculate_UnrepresentableVolatilityStep_ThrowsArithmeticException()
-{
-    var option = new EuropeanOption(
-        OptionType.Call, 100.0, 1.0);
-
-    var market = new BlackScholesMarketData(
-        100.0, 0.0, double.Epsilon);
-
-    var calculator = new FiniteDifferenceGreeksCalculator(_pricer);
-
-    Assert.Throws<ArithmeticException>(() =>
-        calculator.Calculate(option, market));
-}
-
-private static void AssertRelativeErrorBelow(
-    double expected,
-    double actual,
-    double maximumRelativeError)
-{
-    Assert.True(double.IsFinite(expected));
-    Assert.True(double.IsFinite(actual));
-    Assert.NotEqual(0.0, expected);
-
-    double relativeError =
-        Math.Abs((actual - expected) / expected);
-
-    Assert.InRange(
-        relativeError,
-        0.0,
-        maximumRelativeError);
-}
 
 
-[Theory]
-[InlineData(OptionType.Call, 105.0, 25.0)]
-[InlineData(OptionType.Put, 25.0, 105.0)]
-public void Calculate_CancellationDominatedGamma_ThrowsArithmeticException(
-    OptionType type,
-    double spot,
-    double strike)
-{
-    var option = new EuropeanOption(type, strike, 1.0);
+    [Theory]
+    [InlineData(OptionType.Call, 0.01)]
+    [InlineData(OptionType.Put, 0.01)]
+    [InlineData(OptionType.Call, 0.005)]
+    [InlineData(OptionType.Put, 0.005)]
+    public void Calculate_ShortMaturityAndLowVolatility_HasAccurateGammaAndTheta(
+        OptionType type,
+        double volatility)
+    {
+        // Arrange
+        var option = new EuropeanOption(
+            type,
+            strike: 100.0,
+            timeToMaturity: 1.0 / 365.0);
 
-    var market = new BlackScholesMarketData(
-        spot,
-        riskFreeRate: 0.05,
-        volatility: 1e-7);
+        var market = new BlackScholesMarketData(
+            spot: 100.0,
+            riskFreeRate: 0.0,
+            volatility: volatility);
 
-    var calculator = new FiniteDifferenceGreeksCalculator(_pricer);
-    
-    var exception = Assert.Throws<ArithmeticException>(() =>
-        calculator.Calculate(option, market));
+        var calculator = new FiniteDifferenceGreeksCalculator(_pricer);
 
-    Assert.Contains(
-        "Gamma cannot be reliably estimated",
-        exception.Message);
-}
+        BlackScholesGreeks analytical =
+            _pricer.CalculateGreeks(option, market);
+
+        // Act
+        BlackScholesGreeks numerical =
+            calculator.Calculate(option, market);
+
+        // Assert
+        AssertRelativeErrorBelow(
+            analytical.Gamma, numerical.Gamma, 0.003);
+
+        AssertRelativeErrorBelow(
+            analytical.Theta, numerical.Theta, 0.001);
+    }
+
+    [Theory]
+    [InlineData(1e-160)]
+    [InlineData(1e160)]
+    public void Calculate_UnrepresentableGammaDenominator_ThrowsArithmeticException(
+        double spot)
+    {
+        var option = new EuropeanOption(
+            OptionType.Call, spot, 1.0);
+
+        var market = new BlackScholesMarketData(
+            spot, 0.0, 0.20);
+
+        var calculator = new FiniteDifferenceGreeksCalculator(_pricer);
+
+        Assert.Throws<ArithmeticException>(() =>
+            calculator.Calculate(option, market));
+    }
+
+    [Fact]
+    public void Calculate_UnrepresentableVolatilityStep_ThrowsArithmeticException()
+    {
+        var option = new EuropeanOption(
+            OptionType.Call, 100.0, 1.0);
+
+        var market = new BlackScholesMarketData(
+            100.0, 0.0, double.Epsilon);
+
+        var calculator = new FiniteDifferenceGreeksCalculator(_pricer);
+
+        Assert.Throws<ArithmeticException>(() =>
+            calculator.Calculate(option, market));
+    }
+
+    private static void AssertRelativeErrorBelow(
+        double expected,
+        double actual,
+        double maximumRelativeError)
+    {
+        Assert.True(double.IsFinite(expected));
+        Assert.True(double.IsFinite(actual));
+        Assert.NotEqual(0.0, expected);
+
+        double relativeError =
+            Math.Abs((actual - expected) / expected);
+
+        Assert.InRange(
+            relativeError,
+            0.0,
+            maximumRelativeError);
+    }
+
+
+    [Theory]
+    [InlineData(OptionType.Call, 105.0, 25.0)]
+    [InlineData(OptionType.Put, 25.0, 105.0)]
+    public void Calculate_CancellationDominatedGamma_ThrowsArithmeticException(
+        OptionType type,
+        double spot,
+        double strike)
+    {
+        var option = new EuropeanOption(type, strike, 1.0);
+
+        var market = new BlackScholesMarketData(
+            spot,
+            riskFreeRate: 0.05,
+            volatility: 1e-7);
+
+        var calculator = new FiniteDifferenceGreeksCalculator(_pricer);
+
+        var exception = Assert.Throws<ArithmeticException>(() =>
+            calculator.Calculate(option, market));
+
+        Assert.Contains(
+            "Gamma cannot be reliably estimated",
+            exception.Message);
+    }
 }
