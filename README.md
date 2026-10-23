@@ -168,3 +168,13 @@ These checks do not guarantee numerical accuracy for all finite
 inputs. Extreme parameter values, underflow, cancellation and
 normal-distribution tail accuracy remain limitations of the
 current implementation.
+
+Discounted strike calculations use direct multiplication for
+ordinary inputs, with a logarithmic fallback when the discount
+factor overflows or underflows.
+
+The pricing engine rejects negative and non-finite option prices.
+
+Regression tests cover cases where the discount factor itself
+is not representable but the discounted strike remains finite.
+

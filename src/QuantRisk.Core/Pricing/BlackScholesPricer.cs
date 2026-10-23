@@ -1,4 +1,3 @@
-
 using MathNet.Numerics.Distributions;
 using QuantRisk.Instruments;
 using QuantRisk.Market;
@@ -15,32 +14,29 @@ public sealed class BlackScholesPricer
         ArgumentNullException.ThrowIfNull(marketData);
 
         double spot = marketData.Spot;
-        double strike = option.Strike;
 
-        var (d1, d2, discountFactor) =
+        var (d1, d2, discountedStrike) =
             CalculateTerms(option, marketData);
 
         double price = option.Type switch
         {
             OptionType.Call =>
                 spot * Normal.CDF(0.0, 1.0, d1)
-                - strike * discountFactor
-                * Normal.CDF(0.0, 1.0, d2),
+                - discountedStrike * Normal.CDF(0.0, 1.0, d2),
 
             OptionType.Put =>
-                strike * discountFactor
-                * Normal.CDF(0.0, 1.0, -d2)
+                discountedStrike * Normal.CDF(0.0, 1.0, -d2)
                 - spot * Normal.CDF(0.0, 1.0, -d1),
 
             _ => throw new ArgumentOutOfRangeException(
                 nameof(option),
                 "Unsupported option type.")
         };
-        
-        if (!double.IsFinite(price))
+
+        if (!double.IsFinite(price) || price < 0.0)
         {
             throw new ArithmeticException(
-                "Black-Scholes price is not finite.");
+                "Black-Scholes price is negative or non-finite.");
         }
 
         return price;
@@ -54,12 +50,11 @@ public sealed class BlackScholesPricer
         ArgumentNullException.ThrowIfNull(marketData);
 
         double spot = marketData.Spot;
-        double strike = option.Strike;
         double rate = marketData.RiskFreeRate;
         double volatility = marketData.Volatility;
         double maturity = option.TimeToMaturity;
 
-        var (d1, d2, discountFactor) =
+        var (d1, d2, discountedStrike) =
             CalculateTerms(option, marketData);
 
         double sqrtT = Math.Sqrt(maturity);
@@ -67,7 +62,6 @@ public sealed class BlackScholesPricer
         double normalD1 = Normal.CDF(0.0, 1.0, d1);
         double normalD2 = Normal.CDF(0.0, 1.0, d2);
 
-        // Standard normal probability density function.
         double densityD1 =
             Math.Exp(-0.5 * d1 * d1)
             / Math.Sqrt(2.0 * Math.PI);
@@ -77,6 +71,7 @@ public sealed class BlackScholesPricer
         {
             OptionType.Call => normalD1,
             OptionType.Put => normalD1 - 1.0,
+
             _ => throw new ArgumentOutOfRangeException(
                 nameof(option),
                 "Unsupported option type.")
@@ -90,7 +85,7 @@ public sealed class BlackScholesPricer
         double vega =
             spot * densityD1 * sqrtT;
 
-        // Theta
+        // Theta: sensitivity per year of elapsed time
         double commonTheta =
             -(spot * densityD1 * volatility)
             / (2.0 * sqrtT);
@@ -99,12 +94,12 @@ public sealed class BlackScholesPricer
         {
             OptionType.Call =>
                 commonTheta
-                - rate * strike * discountFactor * normalD2,
+                - rate * discountedStrike * normalD2,
 
             OptionType.Put =>
                 commonTheta
-                + rate * strike * discountFactor
-                * Normal.CDF(0.0, 1.0, -d2),
+                + rate * discountedStrike
+                       * Normal.CDF(0.0, 1.0, -d2),
 
             _ => throw new ArgumentOutOfRangeException(
                 nameof(option),
@@ -115,17 +110,17 @@ public sealed class BlackScholesPricer
         double rho = option.Type switch
         {
             OptionType.Call =>
-                strike * maturity * discountFactor * normalD2,
+                maturity * discountedStrike * normalD2,
 
             OptionType.Put =>
-                -strike * maturity * discountFactor
-                * Normal.CDF(0.0, 1.0, -d2),
+                -maturity * discountedStrike
+                          * Normal.CDF(0.0, 1.0, -d2),
 
             _ => throw new ArgumentOutOfRangeException(
                 nameof(option),
                 "Unsupported option type.")
         };
-        
+
         if (!double.IsFinite(delta)
             || !double.IsFinite(gamma)
             || !double.IsFinite(vega)
@@ -143,12 +138,11 @@ public sealed class BlackScholesPricer
             theta,
             rho);
     }
-    
-    
+
     private static (
         double D1,
         double D2,
-        double DiscountFactor)
+        double DiscountedStrike)
         CalculateTerms(
             EuropeanOption option,
             BlackScholesMarketData marketData)
@@ -169,7 +163,7 @@ public sealed class BlackScholesPricer
                 "Black-Scholes volatility term is not representable.");
         }
 
-        // Avoid overflow or underflow in the spot/strike ratio.
+        // Avoid overflow or underflow in spot / strike.
         double ratio = spot / strike;
 
         double logMoneyness =
@@ -184,17 +178,48 @@ public sealed class BlackScholesPricer
 
         double d2 = d1 - volatilitySqrtT;
 
-        double discountFactor =
-            Math.Exp(-rate * maturity);
+        double discountedStrike =
+            CalculateDiscountedStrike(strike, rate, maturity);
 
         if (!double.IsFinite(d1)
-            || !double.IsFinite(d2)
-            || !double.IsFinite(discountFactor))
+            || !double.IsFinite(d2))
         {
             throw new ArithmeticException(
                 "Black-Scholes intermediate terms are not finite.");
         }
 
-        return (d1, d2, discountFactor);
+        return (d1, d2, discountedStrike);
+    }
+
+    private static double CalculateDiscountedStrike(
+        double strike,
+        double rate,
+        double maturity)
+    {
+        double exponent = -rate * maturity;
+
+        // Preferred path for ordinary market inputs.
+        double discountFactor = Math.Exp(exponent);
+        double discountedStrike = strike * discountFactor;
+
+        // Recover a representable result when an intermediate
+        // exponential or multiplication overflows/underflows.
+        if (discountFactor == 0.0
+            || double.IsSubnormal(discountFactor)
+            || !double.IsFinite(discountedStrike))
+        {
+            double logDiscountedStrike =
+                Math.Log(strike) + exponent;
+
+            discountedStrike = Math.Exp(logDiscountedStrike);
+        }
+
+        if (!double.IsFinite(discountedStrike))
+        {
+            throw new ArithmeticException(
+                "Discounted strike is not representable.");
+        }
+
+        return discountedStrike;
     }
 }
