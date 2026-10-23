@@ -125,4 +125,81 @@ public class BlackScholesRobustnessTests
             0.0,
             1e-10);
     }
+
+
+    [Theory]
+    [InlineData(
+        OptionType.Put,
+        1e-28,
+        1e300,
+        750.0,
+        1.8916849634750064e-26)]
+    [InlineData(
+        OptionType.Call,
+        1e28,
+        1e-300,
+        -750.0,
+        9.947415054585452e27)]
+    public void Price_DiscountFactorOverflowOrUnderflow_MatchesReference(
+        OptionType type,
+        double spot,
+        double strike,
+        double rate,
+        double expectedPrice)
+    {
+        var option = new EuropeanOption(type, strike, 1.0);
+
+        var market = new BlackScholesMarketData(
+            spot, rate, 0.20);
+
+        double actualPrice = _pricer.Price(option, market);
+
+        Assert.True(double.IsFinite(actualPrice));
+        Assert.True(actualPrice >= 0.0);
+
+        double relativeError =
+            Math.Abs((actualPrice - expectedPrice) / expectedPrice);
+
+        Assert.InRange(relativeError, 0.0, 1e-12);
+    }
+
+    [Theory]
+    [InlineData(
+        OptionType.Put,
+        1e-28,
+        1e300,
+        750.0,
+        -1.9016849634750064e-26)]
+    [InlineData(
+        OptionType.Call,
+        1e28,
+        1e-300,
+        -750.0,
+        5.258494541454804e25)]
+    public void CalculateGreeks_DiscountFactorOverflowOrUnderflow_RecoversRho(
+        OptionType type,
+        double spot,
+        double strike,
+        double rate,
+        double expectedRho)
+    {
+        var option = new EuropeanOption(type, strike, 1.0);
+
+        var market = new BlackScholesMarketData(
+            spot, rate, 0.20);
+
+        BlackScholesGreeks greeks =
+            _pricer.CalculateGreeks(option, market);
+
+        Assert.True(double.IsFinite(greeks.Delta));
+        Assert.True(double.IsFinite(greeks.Gamma));
+        Assert.True(double.IsFinite(greeks.Vega));
+        Assert.True(double.IsFinite(greeks.Theta));
+        Assert.True(double.IsFinite(greeks.Rho));
+
+        double relativeError =
+            Math.Abs((greeks.Rho - expectedRho) / expectedRho);
+
+        Assert.InRange(relativeError, 0.0, 1e-12);
+    }
 }
