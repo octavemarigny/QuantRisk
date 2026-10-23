@@ -10,10 +10,10 @@ methods, software architecture, and automated testing.
 The project is developed incrementally, with an emphasis on correctness, maintainability, and understanding the
 underlying financial mathematics.
 
-**Current status: V0 — Black-Scholes Core**
+**Current status: Black-Scholes Core completed — Portfolio Foundations implemented**
 
-The first version provides European option pricing, analytical and numerical Greeks, financial validation, and numerical
-robustness checks.
+QuantRisk currently supports European option pricing, analytical and numerical Greeks, financial validation, numerical
+robustness checks, and immutable position and portfolio models.
 
 ## Features
 
@@ -24,13 +24,14 @@ robustness checks.
 - Analytical Delta, Gamma, Vega, Theta, and Rho.
 - Numerical Greeks using central finite differences.
 - Input validation and immutable financial data models.
+- Position modeling with signed quantities.
+- Immutable portfolio composition.
 - Financial consistency and regression tests.
 - Numerical robustness checks for extreme inputs.
 - Automated testing with GitHub Actions.
 
 ### Planned
 
-- Position and portfolio modeling.
 - Portfolio valuation and aggregated risk sensitivities.
 - Market scenario analysis and stress testing.
 - P&L explain.
@@ -77,7 +78,9 @@ The CI pipeline automatically builds and tests the solution on pull requests and
 
 ## Usage
 
-The pricing engine is available through the `QuantRisk.Core` class library.
+The pricing engine and portfolio models are available through the `QuantRisk.Core` class library.
+
+### Option pricing and Greeks
 
 The following example creates a European call option, prices it using Black-Scholes, and calculates its analytical and
 numerical Greeks.
@@ -116,8 +119,115 @@ BlackScholesGreeks numericalGreeks =
 
 For the parameters above, the theoretical Black-Scholes call price is approximately `10.45058`.
 
-All prices and sensitivities are calculated per option unit. Position quantities, contract multipliers, and portfolio
-aggregation are not yet implemented.
+Prices and sensitivities are calculated per option unit. Portfolio-level valuation and risk aggregation are not yet
+implemented.
+
+### Position and portfolio creation
+
+The following example creates a portfolio containing long and short positions on European options.
+
+```csharp
+using QuantRisk.Instruments;
+using QuantRisk.Portfolios;
+
+var call100 = new EuropeanOption(
+    OptionType.Call, 100.0, 1.0);
+
+var put95 = new EuropeanOption(
+    OptionType.Put, 95.0, 1.0);
+
+var call110 = new EuropeanOption(
+    OptionType.Call, 110.0, 1.0);
+
+var portfolio = new Portfolio(
+[
+    new Position(call100, 10.0),
+    new Position(put95, -5.0),
+    new Position(call110, 3.0)
+]);
+
+foreach (var position in portfolio.Positions)
+{
+    Console.WriteLine(
+        $"{position.Instrument.Type} " +
+        $"K={position.Instrument.Strike}, " +
+        $"Quantity={position.Quantity}");
+}
+```
+
+Positive quantities represent long positions, while negative quantities represent short positions.
+
+The portfolio preserves its positions without allowing modifications after construction.
+
+Pricing individual positions and aggregating their values and Greeks will be introduced in a future version.
+
+## Positions and Portfolios
+
+QuantRisk provides immutable domain models for representing financial positions and portfolios.
+
+These models separate **financial instruments** from **holdings**, establishing the foundation for portfolio valuation
+and risk aggregation.
+
+### Position
+
+A `Position` associates a European option with a signed quantity.
+
+| Property     | Description                          |
+|--------------|--------------------------------------|
+| `Instrument` | European option held by the position |
+| `Quantity`   | Signed number of option units        |
+
+Quantity conventions:
+
+- Positive quantities represent long positions.
+- Negative quantities represent short positions.
+- Fractional quantities are supported.
+- Zero quantities are rejected.
+- NaN and infinite quantities are rejected.
+
+The instrument reference cannot be null.
+
+`Position` is implemented as an immutable sealed record, providing value-based equality semantics.
+
+Two positions can reference equivalent instruments while holding different quantities.
+
+### Portfolio
+
+A `Portfolio` represents an ordered collection of positions.
+
+The current implementation supports:
+
+- Empty portfolios.
+- Multiple positions within the same portfolio.
+- Duplicate positions.
+- Preservation of insertion order.
+- Immutable portfolio composition.
+- Validation of null collections and null positions.
+
+The portfolio copies the input collection during construction and exposes it through a read-only interface.
+
+This prevents external modifications to the original collection from affecting the portfolio after creation.
+
+Positions are not automatically merged or netted.
+
+### Current scope and limitations
+
+Portfolio modeling is currently limited to European options.
+
+The following capabilities are not yet implemented:
+
+- Portfolio valuation.
+- Aggregated Greeks.
+- Trade identifiers and position lifecycle management.
+- Contract multipliers and notionals.
+- Currency and FX conversion.
+- Explicit underlying identifiers.
+- Multi-underlying market data.
+
+The portfolio model does not enforce that all positions reference the same underlying. Until multi-underlying support is
+introduced, future portfolio calculations will assume a common underlying and compatible valuation conventions.
+
+Portfolio pricing and risk aggregation will be introduced in QR-009.
 
 ## Black-Scholes Model
 
@@ -213,6 +323,9 @@ Approximate daily Theta ≈ Theta / 365
 ```
 
 These are first-order approximations for finite parameter changes.
+
+Analytical and numerical Greeks currently represent sensitivities per option unit. Position-level and portfolio-level
+sensitivities are planned for QR-009.
 
 ## Numerical Greeks
 
@@ -342,8 +455,21 @@ The current implementation is an educational and engineering project, not a prod
 
 ## Testing and Validation
 
-The project uses xUnit to validate financial properties, analytical formulas, numerical approximations, and software
-behavior.
+The project uses xUnit to validate financial properties, domain models, analytical formulas, numerical approximations,
+and software behavior.
+
+### Domain model validation
+
+Tests cover:
+
+- Valid and invalid option parameters.
+- Valid long, short, and fractional positions.
+- Rejection of null instruments and invalid quantities.
+- Position value equality.
+- Empty and populated portfolios.
+- Preservation of portfolio position order and duplicates.
+- Rejection of null portfolio inputs.
+- Protection against external collection modifications.
 
 ### Financial validation
 
@@ -394,6 +520,9 @@ QuantRisk/
 │       │   └── OptionType.cs
 │       ├── Market/
 │       │   └── BlackScholesMarketData.cs
+│       ├── Portfolios/
+│       │   ├── Position.cs
+│       │   └── Portfolio.cs
 │       └── Pricing/
 │           ├── BlackScholesPricer.cs
 │           ├── BlackScholesGreeks.cs
@@ -402,13 +531,16 @@ QuantRisk/
 │   └── QuantRisk.Core.Tests/
 │       ├── Instruments/
 │       ├── Market/
+│       ├── Portfolios/
+│       │   ├── PositionTests.cs
+│       │   └── PortfolioTests.cs
 │       └── Pricing/
 ├── AGENTS.md
 ├── QuantRisk.slnx
 └── README.md
 ```
 
-The core library separates financial instruments, market data, and pricing logic.
+The core library separates financial instruments, market data, portfolio models, and pricing logic.
 
 Automated tests are maintained in a dedicated test project.
 
@@ -416,15 +548,15 @@ Automated tests are maintained in a dedicated test project.
 
 The project will evolve incrementally from single-instrument pricing toward portfolio-level valuation and risk analysis.
 
-| Phase                        | Planned work                                                  |
-|------------------------------|---------------------------------------------------------------|
-| V0 — Black-Scholes Core      | European options, pricing, Greeks, validation — **Completed** |
-| Portfolio foundations        | Positions, quantities, portfolio composition                  |
-| Portfolio risk               | Aggregated valuation and Greeks                               |
-| Scenario analysis            | Market shocks and stress testing                              |
-| P&L analysis                 | P&L explain and risk attribution                              |
-| User interface               | Command-line workflows                                        |
-| Advanced quantitative models | Implied volatility and additional numerical pricing methods   |
+| Phase                          | Planned work                                                  | Status      |
+|--------------------------------|---------------------------------------------------------------|-------------|
+| V0 — Black-Scholes Core        | European options, pricing, Greeks, validation                 | Completed   |
+| QR-008 — Portfolio Foundations | Positions, signed quantities, immutable portfolio composition | Implemented |
+| QR-009 — Portfolio Risk        | Portfolio valuation and aggregated Greeks                     | Planned     |
+| Scenario Analysis              | Market shocks and stress testing                              | Planned     |
+| P&L Analysis                   | P&L explain and risk attribution                              | Planned     |
+| User Interface                 | Command-line workflows                                        | Planned     |
+| Advanced Quantitative Models   | Implied volatility and additional numerical pricing methods   | Planned     |
 
 The roadmap may evolve as the project develops.
 
