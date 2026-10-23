@@ -2,179 +2,441 @@
 
 [![QuantRisk CI](https://github.com/octavemarigny/QuantRisk/actions/workflows/ci.yml/badge.svg)](https://github.com/octavemarigny/QuantRisk/actions/workflows/ci.yml)
 
-QuantRisk is a C#/.NET derivatives pricing and risk engine built as a personal software engineering and quantitative finance project.
+QuantRisk is a personal quantitative finance and software engineering project built with **C# and .NET 10**.
 
-## Current status
+The goal is to develop a modular derivatives pricing and risk engine while exploring financial models, numerical
+methods, software architecture, and automated testing.
 
-V0 — Black-Scholes Core
+The project is developed incrementally, with an emphasis on correctness, maintainability, and understanding the
+underlying financial mathematics.
 
-## Planned V0 features
+**Current status: V0 — Black-Scholes Core**
 
-- European call and put options
-- Black-Scholes pricing
-- Numerical and financial validation
-- Unit tests
+The first version provides European option pricing, analytical and numerical Greeks, financial validation, and numerical
+robustness checks.
 
-## Technology
+## Features
 
-- .NET 10
-- C# 14
-- xUnit
+### Implemented
 
+- European call and put options.
+- Black-Scholes analytical pricing.
+- Analytical Delta, Gamma, Vega, Theta, and Rho.
+- Numerical Greeks using central finite differences.
+- Input validation and immutable financial data models.
+- Financial consistency and regression tests.
+- Numerical robustness checks for extreme inputs.
+- Automated testing with GitHub Actions.
 
-## Black-Scholes Pricing
+### Planned
 
-QuantRisk currently supports the pricing of European call and put options
-using the Black-Scholes model.
+- Position and portfolio modeling.
+- Portfolio valuation and aggregated risk sensitivities.
+- Market scenario analysis and stress testing.
+- P&L explain.
+- Command-line interface.
+- Implied volatility calibration.
+- Additional pricing models and numerical methods.
 
-### Model assumptions
+These features are planned and are not yet part of the current implementation.
 
-The current implementation assumes:
+## Technology Stack
 
-- European exercise only.
-- No dividends.
-- Constant volatility.
-- Constant continuously compounded risk-free interest rate.
-- Lognormally distributed underlying prices.
-- Frictionless markets.
+| Technology        | Purpose                                              |
+|-------------------|------------------------------------------------------|
+| C# 14 / .NET 10   | Core implementation                                  |
+| Math.NET Numerics | Mathematical functions and probability distributions |
+| xUnit             | Automated unit and validation tests                  |
+| Git / GitHub      | Version control and code review                      |
+| GitHub Actions    | Continuous integration                               |
 
-### Inputs
+## Getting Started
 
-| Parameter | Description |
-|---|---|
-| Spot | Current underlying price |
-| Strike | Option strike price |
-| TimeToMaturity | Time to expiration in years |
-| RiskFreeRate | Continuously compounded annual rate |
-| Volatility | Annualized volatility |
+### Prerequisites
 
-Rates and volatility are expressed as decimals:
-`0.05` represents 5%.
+- .NET 10 SDK
+- Git
 
-### Supported instruments
+### Clone and build
 
-- European Call
-- European Put
+```bash
+git clone https://github.com/octavemarigny/QuantRisk.git
+cd QuantRisk
 
-### Limitations
-
-- Zero volatility and zero time to maturity are not supported.
-- Dividend yields are not supported.
-- Interest rates and volatility are assumed constant.
-- Extreme numerical inputs have not yet been validated.
-- The model does not account for volatility smiles or transaction costs.
+dotnet restore QuantRisk.slnx
+dotnet build QuantRisk.slnx --configuration Release
+```
 
 ### Run tests
 
 ```bash
-dotnet test
+dotnet test QuantRisk.slnx --configuration Release
 ```
 
-## Analytical Greeks
+The CI pipeline automatically builds and tests the solution on pull requests and pushes to `main`.
 
-QuantRisk supports analytical Black-Scholes sensitivities:
+## Usage
 
-- Delta
-- Gamma
-- Vega
-- Theta
-- Rho
+The pricing engine is available through the `QuantRisk.Core` class library.
 
-### Conventions
+The following example creates a European call option, prices it using Black-Scholes, and calculates its analytical and
+numerical Greeks.
 
-| Greek | Convention |
-|---|---|
-| Delta | Price sensitivity per unit change in spot |
-| Gamma | Second derivative with respect to spot |
-| Vega | Price sensitivity per unit change in volatility |
-| Theta | Price sensitivity per year of elapsed time |
-| Rho | Price sensitivity per unit change in interest rate |
+```csharp
+using QuantRisk.Instruments;
+using QuantRisk.Market;
+using QuantRisk.Pricing;
 
-Vega and Rho are returned for absolute parameter changes.
+var option = new EuropeanOption(
+    OptionType.Call,
+    strike: 100.0,
+    timeToMaturity: 1.0);
+
+var marketData = new BlackScholesMarketData(
+    spot: 100.0,
+    riskFreeRate: 0.05,
+    volatility: 0.20);
+
+var pricer = new BlackScholesPricer();
+
+// Option pricing
+double price = pricer.Price(option, marketData);
+
+// Analytical Greeks
+BlackScholesGreeks analyticalGreeks =
+    pricer.CalculateGreeks(option, marketData);
+
+// Numerical Greeks
+var numericalCalculator =
+    new FiniteDifferenceGreeksCalculator(pricer);
+
+BlackScholesGreeks numericalGreeks =
+    numericalCalculator.Calculate(option, marketData);
+```
+
+For the parameters above, the theoretical Black-Scholes call price is approximately `10.45058`.
+
+All prices and sensitivities are calculated per option unit. Position quantities, contract multipliers, and portfolio
+aggregation are not yet implemented.
+
+## Black-Scholes Model
+
+QuantRisk currently implements the Black-Scholes model for European vanilla options.
+
+### Model assumptions
+
+The implementation assumes:
+
+- European exercise only.
+- No dividends or other underlying payouts.
+- Constant volatility.
+- Constant continuously compounded risk-free interest rate.
+- Geometric Brownian motion for the underlying price.
+- Frictionless markets.
+
+### Model inputs
+
+| Parameter        | Description                                   | Constraint                      |
+|------------------|-----------------------------------------------|---------------------------------|
+| `Spot`           | Current underlying price                      | Positive, finite                |
+| `Strike`         | Option strike price                           | Positive, finite                |
+| `TimeToMaturity` | Time to expiration, in years                  | Positive, finite                |
+| `RiskFreeRate`   | Continuously compounded annual risk-free rate | Finite; negative values allowed |
+| `Volatility`     | Annualized volatility                         | Positive, finite                |
+
+Rates and volatility are expressed as decimals:
+
+- `0.05` represents a 5% interest rate.
+- `0.20` represents 20% annualized volatility.
+- `0.0001` represents one basis point.
+
+Zero volatility and zero time to maturity are not supported in the current version.
+
+### Analytical pricing
+
+For a European call:
+
+```text
+Call = S × N(d1) - K × exp(-rT) × N(d2)
+```
+
+For a European put:
+
+```text
+Put = K × exp(-rT) × N(-d2) - S × N(-d1)
+```
+
+Where:
+
+```text
+d1 = [ln(S/K) + (r + σ²/2) × T] / (σ × sqrt(T))
+d2 = d1 - σ × sqrt(T)
+```
+
+With:
+
+- `S`: spot price.
+- `K`: strike price.
+- `r`: continuously compounded risk-free rate.
+- `T`: time to maturity in years.
+- `σ`: annualized volatility.
+- `N(x)`: standard normal cumulative distribution function.
+
+## Risk Sensitivities
+
+QuantRisk supports the five standard Black-Scholes Greeks, calculated either analytically or through numerical
+differentiation.
+
+### Greeks and conventions
+
+| Greek | Definition                                              | Convention                 |
+|-------|---------------------------------------------------------|----------------------------|
+| Delta | First derivative of price with respect to spot          | Per unit spot change       |
+| Gamma | Second derivative of price with respect to spot         | Per squared spot unit      |
+| Vega  | First derivative of price with respect to volatility    | Per unit volatility change |
+| Theta | Sensitivity to the passage of time                      | Per year of elapsed time   |
+| Rho   | First derivative of price with respect to interest rate | Per unit rate change       |
+
+Theta follows the **elapsed-time convention**: it is the negative derivative of the option price with respect to time to
+maturity, with all other model inputs held constant.
+
+Vega and Rho are not automatically scaled to market quotation conventions.
 
 For example:
 
-- Vega for a 1% volatility move: `Vega / 100`
-- Rho for a 1 bp rate move: `Rho / 10000`
-- Approximate daily Theta: `Theta / 365`
+```text
+Vega for a +1 percentage point volatility move ≈ Vega / 100
 
-All Greeks are calculated for a single option unit.
-Position quantities and contract sizes are not yet supported.
+Rho for a +1 bp interest rate move ≈ Rho / 10,000
 
+Approximate daily Theta ≈ Theta / 365
+```
 
-## Finite Difference Greeks
+These are first-order approximations for finite parameter changes.
 
-QuantRisk supports numerical Greeks using central finite differences
-and a bump-and-reprice approach.
+## Numerical Greeks
 
-The numerical calculator uses the Black-Scholes pricing engine
-without relying on analytical Greek formulas.
+`FiniteDifferenceGreeksCalculator` independently approximates the Greeks using a **bump-and-reprice** approach.
 
-### Supported sensitivities
+It uses the existing Black-Scholes pricing engine without calling the analytical Greek formulas.
 
-- Delta: central first derivative with respect to spot
-- Gamma: central second derivative with respect to spot
-- Vega: central first derivative with respect to volatility
-- Theta: negative central derivative with respect to time to maturity
-- Rho: central first derivative with respect to interest rate
+### Finite difference methods
+
+The calculator uses central finite differences:
+
+- Delta: central first derivative with respect to spot.
+- Gamma: central second derivative with respect to spot.
+- Vega: central first derivative with respect to volatility.
+- Theta: negative central first derivative with respect to time to maturity.
+- Rho: central first derivative with respect to interest rate.
+
+Calculating all five Greeks requires nine pricing evaluations.
 
 ### Default bump sizes
 
-| Parameter | Bump |
-|---|---|
-| Spot | 0.1% of spot |
-| Volatility | min(0.0001, volatility / 2) |
-| Interest rate | 0.0001 |
-| Time to maturity | min(0.001, maturity / 2) |
+The perturbation sizes are selected as follows:
 
-The calculator uses 9 pricing evaluations to compute all five Greeks.
+| Parameter        | Bump                                    |
+|------------------|-----------------------------------------|
+| Spot             | `min(0.001 × S, 0.1 × S × σ × sqrt(T))` |
+| Volatility       | `min(0.0001, σ / 2)`                    |
+| Interest rate    | `0.0001`                                |
+| Time to maturity | `min(0.001, 0.01 × T)`                  |
 
-### Limitations
+Where `S`, `σ`, and `T` are the spot price, volatility, and time to maturity.
 
-The bump sizes are currently fixed by the implementation.
-They have been validated on selected test scenarios but are
-not optimized for all possible market conditions.
+The spot bump accounts for the volatility-scaled time horizon, improving numerical Gamma accuracy for some
+low-volatility and short-maturity scenarios.
 
-Numerical errors can increase significantly for extreme parameters,
-very short maturities or very small bump sizes.
+These are pragmatic choices rather than globally optimal step sizes.
 
-### Finite Difference Convergence
+### Numerical accuracy
 
-The numerical accuracy of central finite differences depends on
-the choice of bump size.
+Central finite differences introduce two main sources of numerical error:
 
-For Gamma, the truncation error is second-order in the spot bump.
-Decreasing the bump initially improves accuracy, but excessively
-small bumps amplify floating-point round-off errors.
+1. **Truncation error:** the approximation differs from the exact derivative because the bump is finite.
+2. **Floating-point error:** excessively small bumps amplify rounding errors and numerical cancellation.
 
-A convergence experiment is included in
-`GammaConvergenceTests.cs`.
+For Gamma, the central finite difference approximation has second-order truncation error in the spot bump.
 
-The current default spot bump is 0.1% of spot.
-This is a pragmatic choice rather than a globally optimal step.
+Reducing the bump may initially improve accuracy, but sufficiently small bumps can produce unreliable results.
 
-### Numerical Robustness
+The calculator therefore validates:
 
-The pricing engine rejects non-finite intermediate calculations
-and results using `ArithmeticException`.
+- Finite, positive, and representable perturbation sizes.
+- Valid perturbed parameter values.
+- A finite, nonzero Gamma denominator.
+- Finite numerical Greek results.
+- Numerical cancellation affecting the Gamma calculation.
 
-Log-moneyness calculations include a fallback to avoid overflow
-and underflow in the spot-to-strike ratio.
+When the Gamma price difference is too small relative to an estimate of floating-point rounding noise, the calculator
+throws an `ArithmeticException` instead of returning a potentially misleading result.
 
-The test suite also covers price homogeneity under proportional
-spot and strike scaling.
+This detection is heuristic and does not guarantee that every returned Greek is accurate.
 
-These checks do not guarantee numerical accuracy for all finite
-inputs. Extreme parameter values, underflow, cancellation and
-normal-distribution tail accuracy remain limitations of the
-current implementation.
+A dedicated numerical experiment is available in `GammaConvergenceTests.cs`.
 
-Discounted strike calculations use direct multiplication for
-ordinary inputs, with a logarithmic fallback when the discount
-factor overflows or underflows.
+## Numerical Robustness
 
-The pricing engine rejects negative and non-finite option prices.
+Black-Scholes calculations can encounter floating-point limitations even when all model inputs are finite.
 
-Regression tests cover cases where the discount factor itself
-is not representable but the discounted strike remains finite.
+QuantRisk includes defensive numerical checks and regression tests targeting several of these situations.
 
+### Log-moneyness
+
+The calculation of `ln(S/K)` includes a fallback based on:
+
+```text
+ln(S) - ln(K)
+```
+
+This avoids losing the logarithmic ratio when the direct division `S/K` overflows or underflows.
+
+### Discounted strike
+
+The discounted strike is:
+
+```text
+K × exp(-rT)
+```
+
+For ordinary inputs, the engine calculates this expression directly.
+
+When the discount factor underflows, becomes subnormal, or the product is non-finite, the engine uses a logarithmic
+fallback:
+
+```text
+exp(ln(K) - rT)
+```
+
+This can recover a finite discounted strike even when an intermediate discount factor is not accurately representable.
+
+### Error handling
+
+The implementation rejects:
+
+- Invalid financial inputs.
+- Non-finite intermediate Black-Scholes terms.
+- Non-representable discounted strikes.
+- Negative or non-finite option prices.
+- Non-finite analytical Greeks.
+- Invalid numerical perturbations and non-finite numerical Greeks.
+- Gamma estimates dominated by detected floating-point cancellation.
+
+Invalid model inputs generally produce `ArgumentOutOfRangeException`, while numerical failures produce
+`ArithmeticException`.
+
+### Remaining limitations
+
+These safeguards improve reliability but do not make the engine numerically robust for every possible finite input.
+
+In particular:
+
+- Floating-point cancellation may still affect prices and sensitivities.
+- Very small option prices can lose relative precision.
+- Extreme parameters may produce unrepresentable intermediate values.
+- Numerical differentiation may reject otherwise valid financial scenarios.
+- Normal-distribution tail accuracy can affect extreme option valuations.
+
+The current implementation is an educational and engineering project, not a production-validated trading or risk system.
+
+## Testing and Validation
+
+The project uses xUnit to validate financial properties, analytical formulas, numerical approximations, and software
+behavior.
+
+### Financial validation
+
+Tests cover:
+
+- Black-Scholes reference prices.
+- Put-call parity.
+- Option price bounds.
+- Price monotonicity.
+- Analytical Greek identities.
+- Consistency between analytical and numerical Greeks.
+- Price homogeneity under proportional spot and strike scaling.
+
+### Numerical validation
+
+Tests also cover:
+
+- Short-maturity and low-volatility scenarios.
+- Finite difference convergence.
+- Floating-point cancellation affecting Gamma.
+- Unrepresentable perturbations and intermediate values.
+- Discount factor overflow, underflow, and subnormal values.
+- Non-finite pricing and Greek results.
+
+These tests cover selected scenarios, not the entire possible input domain.
+
+### Continuous integration
+
+GitHub Actions runs the following checks:
+
+1. Restore dependencies.
+2. Build the solution in Release configuration.
+3. Execute the automated test suite.
+
+Pull requests are validated before changes are integrated into `main`.
+
+## Project Structure
+
+```text
+QuantRisk/
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── src/
+│   └── QuantRisk.Core/
+│       ├── Instruments/
+│       │   ├── EuropeanOption.cs
+│       │   └── OptionType.cs
+│       ├── Market/
+│       │   └── BlackScholesMarketData.cs
+│       └── Pricing/
+│           ├── BlackScholesPricer.cs
+│           ├── BlackScholesGreeks.cs
+│           └── FiniteDifferenceGreeksCalculator.cs
+├── tests/
+│   └── QuantRisk.Core.Tests/
+│       ├── Instruments/
+│       ├── Market/
+│       └── Pricing/
+├── AGENTS.md
+├── QuantRisk.slnx
+└── README.md
+```
+
+The core library separates financial instruments, market data, and pricing logic.
+
+Automated tests are maintained in a dedicated test project.
+
+## Roadmap
+
+The project will evolve incrementally from single-instrument pricing toward portfolio-level valuation and risk analysis.
+
+| Phase                        | Planned work                                                  |
+|------------------------------|---------------------------------------------------------------|
+| V0 — Black-Scholes Core      | European options, pricing, Greeks, validation — **Completed** |
+| Portfolio foundations        | Positions, quantities, portfolio composition                  |
+| Portfolio risk               | Aggregated valuation and Greeks                               |
+| Scenario analysis            | Market shocks and stress testing                              |
+| P&L analysis                 | P&L explain and risk attribution                              |
+| User interface               | Command-line workflows                                        |
+| Advanced quantitative models | Implied volatility and additional numerical pricing methods   |
+
+The roadmap may evolve as the project develops.
+
+## Project Objectives
+
+QuantRisk is designed as a practical learning and portfolio project combining:
+
+- Modern C# and .NET software development.
+- Object-oriented design and modular architecture.
+- Quantitative finance and derivatives mathematics.
+- Numerical analysis and floating-point arithmetic.
+- Automated testing and continuous integration.
+- Git-based development and code review.
+
+The emphasis is on building and understanding each component, rather than relying on a large financial framework.
