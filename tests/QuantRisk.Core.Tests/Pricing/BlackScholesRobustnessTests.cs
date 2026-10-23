@@ -202,4 +202,29 @@ public class BlackScholesRobustnessTests
 
         Assert.InRange(relativeError, 0.0, 1e-12);
     }
+
+
+    [Fact]
+    public void Price_SubnormalDiscountFactor_MatchesReference()
+    {
+        var option = new EuropeanOption(
+            OptionType.Put, 1e300, 1.0);
+
+        var market = new BlackScholesMarketData(
+            spot: 1e-25,
+            riskFreeRate: 740.0,
+            volatility: 0.20);
+
+        // Independent high-precision reference.
+        const double expectedPrice = 4.1877398800480488e-22;
+
+        double actualPrice = _pricer.Price(option, market);
+
+        Assert.True(double.IsFinite(actualPrice));
+
+        double relativeError =
+            Math.Abs(actualPrice / expectedPrice - 1.0);
+
+        Assert.InRange(relativeError, 0.0, 1e-10);
+    }
 }

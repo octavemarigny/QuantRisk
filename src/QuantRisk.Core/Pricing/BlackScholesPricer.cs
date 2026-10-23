@@ -205,6 +205,7 @@ public sealed class BlackScholesPricer
         // Recover a representable result when an intermediate
         // exponential or multiplication overflows/underflows.
         if (discountFactor == 0.0
+            || double.IsSubnormal(discountFactor)
             || !double.IsFinite(discountedStrike))
         {
             double logDiscountedStrike =
