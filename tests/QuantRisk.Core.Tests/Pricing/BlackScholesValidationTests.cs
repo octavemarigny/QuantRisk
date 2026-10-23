@@ -1,4 +1,3 @@
-
 using QuantRisk.Instruments;
 using QuantRisk.Market;
 using QuantRisk.Pricing;
@@ -11,17 +10,17 @@ public class BlackScholesValidationTests
 
     public static TheoryData<double, double, double, double, double>
         MarketScenarios => new()
-        {
-            // Spot, Strike, Rate, Volatility, Maturity
-            { 100.0, 100.0,  0.05, 0.20, 1.0 },
-            { 125.0, 100.0,  0.03, 0.25, 0.75 },
-            {  80.0, 100.0, -0.01, 0.30, 2.0 },
-            { 100.0, 100.0,  0.02, 0.20, 1.0 / 12.0 },
-            { 100.0, 100.0,  0.00, 0.05, 0.5 },
-            { 100.0, 100.0,  0.02, 0.80, 1.0 },
-            { 100.0, 100.0, -0.02, 0.35, 5.0 },
-            { 150.0, 100.0,  0.04, 0.15, 0.25 }
-        };
+    {
+        // Spot, Strike, Rate, Volatility, Maturity
+        { 100.0, 100.0, 0.05, 0.20, 1.0 },
+        { 125.0, 100.0, 0.03, 0.25, 0.75 },
+        { 80.0, 100.0, -0.01, 0.30, 2.0 },
+        { 100.0, 100.0, 0.02, 0.20, 1.0 / 12.0 },
+        { 100.0, 100.0, 0.00, 0.05, 0.5 },
+        { 100.0, 100.0, 0.02, 0.80, 1.0 },
+        { 100.0, 100.0, -0.02, 0.35, 5.0 },
+        { 150.0, 100.0, 0.04, 0.15, 0.25 }
+    };
 
     [Theory]
     [MemberData(nameof(MarketScenarios))]

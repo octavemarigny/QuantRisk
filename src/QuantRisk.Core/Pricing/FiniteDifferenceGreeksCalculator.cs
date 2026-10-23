@@ -1,4 +1,3 @@
-
 using QuantRisk.Instruments;
 using QuantRisk.Market;
 
@@ -8,8 +7,7 @@ public sealed class FiniteDifferenceGreeksCalculator
 {
     private readonly BlackScholesPricer _pricer;
 
-    public FiniteDifferenceGreeksCalculator(
-        BlackScholesPricer pricer)
+    public FiniteDifferenceGreeksCalculator(BlackScholesPricer pricer)
     {
         ArgumentNullException.ThrowIfNull(pricer);
         _pricer = pricer;
@@ -28,10 +26,35 @@ public sealed class FiniteDifferenceGreeksCalculator
         double maturity = option.TimeToMaturity;
 
         // Finite difference steps
-        double spotStep = 0.001 * spot;
-        double volatilityStep = Math.Min(0.0001, volatility / 2.0);
+        double spotStep = Math.Min(
+            0.001 * spot,
+            0.1 * spot * volatility * Math.Sqrt(maturity));
+
+        double volatilityStep = Math.Min(
+            0.0001,
+            volatility / 2.0);
+
         double rateStep = 0.0001;
-        double maturityStep = Math.Min(0.001, maturity / 2.0);
+
+        double maturityStep = Math.Min(
+            0.001,
+            0.01 * maturity);
+
+        // Validate numerical perturbations
+        ValidateBump(spot, spotStep, true, nameof(spot));
+        ValidateBump(volatility, volatilityStep, true, nameof(volatility));
+        ValidateBump(rate, rateStep, false, nameof(rate));
+        ValidateBump(maturity, maturityStep, true, nameof(maturity));
+
+        // Gamma denominator must be representable
+        double gammaDenominator = spotStep * spotStep;
+
+        if (!double.IsFinite(gammaDenominator)
+            || gammaDenominator == 0.0)
+        {
+            throw new ArithmeticException(
+                "Gamma finite-difference denominator is not representable.");
+        }
 
         // Repricing helpers
         double PriceAtSpot(double bumpedSpot) =>
@@ -66,9 +89,31 @@ public sealed class FiniteDifferenceGreeksCalculator
         double delta =
             (spotUpPrice - spotDownPrice) / (2.0 * spotStep);
 
-        double gamma =
-            (spotUpPrice - 2.0 * basePrice + spotDownPrice)
-            / (spotStep * spotStep);
+        // Gamma: detect numerical cancellation
+        double gammaNumerator =
+            spotUpPrice - 2.0 * basePrice + spotDownPrice;
+
+        // Machine epsilon for double (not double.Epsilon)
+        double machineEpsilon = Math.BitIncrement(1.0) - 1.0;
+
+        // Conservative estimate of floating-point rounding noise
+        // affecting the second price difference
+        double gammaRoundingThreshold =
+            16.0 * machineEpsilon *
+            (Math.Abs(spotUpPrice)
+             + 2.0 * Math.Abs(basePrice)
+             + Math.Abs(spotDownPrice));
+
+        if (!double.IsFinite(gammaNumerator)
+            || !double.IsFinite(gammaRoundingThreshold)
+            || Math.Abs(gammaNumerator) <= gammaRoundingThreshold)
+        {
+            throw new ArithmeticException(
+                "Gamma cannot be reliably estimated: " +
+                "finite-difference prices are dominated by rounding errors.");
+        }
+
+        double gamma = gammaNumerator / gammaDenominator;
 
         // Vega
         double vega =
@@ -88,11 +133,48 @@ public sealed class FiniteDifferenceGreeksCalculator
              - PriceAtRate(rate - rateStep))
             / (2.0 * rateStep);
 
+        // Validate numerical results
+        if (!double.IsFinite(delta)
+            || !double.IsFinite(gamma)
+            || !double.IsFinite(vega)
+            || !double.IsFinite(theta)
+            || !double.IsFinite(rho))
+        {
+            throw new ArithmeticException(
+                "Finite-difference Greeks contain non-finite values.");
+        }
+
         return new BlackScholesGreeks(
             delta,
             gamma,
             vega,
             theta,
             rho);
+    }
+
+    private static void ValidateBump(
+        double value,
+        double step,
+        bool requiresPositive,
+        string parameterName)
+    {
+        if (!double.IsFinite(step) || step <= 0.0)
+        {
+            throw new ArithmeticException(
+                $"Invalid finite-difference step for {parameterName}.");
+        }
+
+        double upper = value + step;
+        double lower = value - step;
+
+        if (!double.IsFinite(upper)
+            || !double.IsFinite(lower)
+            || upper == value
+            || lower == value
+            || (requiresPositive && lower <= 0.0))
+        {
+            throw new ArithmeticException(
+                $"Finite-difference perturbation is not representable for {parameterName}.");
+        }
     }
 }

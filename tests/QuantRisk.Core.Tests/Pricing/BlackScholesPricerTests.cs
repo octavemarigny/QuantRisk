@@ -1,4 +1,3 @@
-
 using QuantRisk.Instruments;
 using QuantRisk.Market;
 using QuantRisk.Pricing;
