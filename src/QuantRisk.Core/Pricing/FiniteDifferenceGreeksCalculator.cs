@@ -90,9 +90,31 @@ public sealed class FiniteDifferenceGreeksCalculator
         double delta =
             (spotUpPrice - spotDownPrice) / (2.0 * spotStep);
 
-        double gamma =
-            (spotUpPrice - 2.0 * basePrice + spotDownPrice)
-            / gammaDenominator;
+        // Gamma: detect numerical cancellation
+        double gammaNumerator =
+            spotUpPrice - 2.0 * basePrice + spotDownPrice;
+
+        // Machine epsilon for double (not double.Epsilon)
+        double machineEpsilon = Math.BitIncrement(1.0) - 1.0;
+
+        // Conservative estimate of floating-point rounding noise
+        // affecting the second price difference
+        double gammaRoundingThreshold =
+            16.0 * machineEpsilon *
+            (Math.Abs(spotUpPrice)
+             + 2.0 * Math.Abs(basePrice)
+             + Math.Abs(spotDownPrice));
+
+        if (!double.IsFinite(gammaNumerator)
+            || !double.IsFinite(gammaRoundingThreshold)
+            || Math.Abs(gammaNumerator) <= gammaRoundingThreshold)
+        {
+            throw new ArithmeticException(
+                "Gamma cannot be reliably estimated: " +
+                "finite-difference prices are dominated by rounding errors.");
+        }
+
+        double gamma = gammaNumerator / gammaDenominator;
 
         // Vega
         double vega =

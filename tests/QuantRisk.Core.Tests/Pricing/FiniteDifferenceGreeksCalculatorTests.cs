@@ -205,4 +205,26 @@ private static void AssertRelativeErrorBelow(
         0.0,
         maximumRelativeError);
 }
+
+
+[Theory]
+[InlineData(OptionType.Call, 105.0, 25.0)]
+[InlineData(OptionType.Put, 25.0, 105.0)]
+public void Calculate_CancellationDominatedGamma_ThrowsArithmeticException(
+    OptionType type,
+    double spot,
+    double strike)
+{
+    var option = new EuropeanOption(type, strike, 1.0);
+
+    var market = new BlackScholesMarketData(
+        spot,
+        riskFreeRate: 0.05,
+        volatility: 1e-7);
+
+    var calculator = new FiniteDifferenceGreeksCalculator(_pricer);
+
+    Assert.Throws<ArithmeticException>(() =>
+        calculator.Calculate(option, market));
+}
 }
