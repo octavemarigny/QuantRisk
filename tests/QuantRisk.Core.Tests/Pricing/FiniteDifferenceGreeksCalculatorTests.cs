@@ -223,8 +223,12 @@ public void Calculate_CancellationDominatedGamma_ThrowsArithmeticException(
         volatility: 1e-7);
 
     var calculator = new FiniteDifferenceGreeksCalculator(_pricer);
-
-    Assert.Throws<ArithmeticException>(() =>
+    
+    var exception = Assert.Throws<ArithmeticException>(() =>
         calculator.Calculate(option, market));
+
+    Assert.Contains(
+        "Gamma cannot be reliably estimated",
+        exception.Message);
 }
 }
