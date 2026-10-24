@@ -120,7 +120,7 @@ public class PortfolioRiskCalculatorTests
         var calculator = new PortfolioRiskCalculator(_pricer);
 
         Assert.Throws<ArgumentNullException>(() =>
-            calculator.Calculate(null!, CreateMarketData()));
+            calculator.Calculate((Position)null!, CreateMarketData()));
     }
 
     [Fact]
