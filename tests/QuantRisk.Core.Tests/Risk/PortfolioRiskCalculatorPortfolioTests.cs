@@ -291,4 +291,67 @@ public class PortfolioRiskCalculatorPortfolioTests
 
         Assert.Equal(3, actual.Positions.Count);
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Calculate_LargeOffsettingPositions_AvoidsIntermediateOverflow(
+        bool alternatingOrder)
+    {
+        // Arrange
+        var option = new EuropeanOption(
+            OptionType.Call, 1.0, 1.0);
+
+        var market = new BlackScholesMarketData(
+            200.0, 0.0, 0.20);
+
+        var longPosition = new Position(option, 5e305);
+        var shortPosition = new Position(option, -5e305);
+
+        Position[] positions = alternatingOrder
+            ?
+            [
+                longPosition,
+                shortPosition,
+                longPosition,
+                shortPosition
+            ]
+            :
+            [
+                longPosition,
+                longPosition,
+                shortPosition,
+                shortPosition
+            ];
+
+        var portfolio = new Portfolio(positions);
+        var calculator = new PortfolioRiskCalculator(_pricer);
+
+        PositionRisk individual =
+            calculator.Calculate(longPosition, market);
+
+        // Each position is finite, but adding two long
+        // positions directly would overflow.
+        Assert.True(double.IsFinite(individual.Value));
+        Assert.True(individual.Value > double.MaxValue / 2.0);
+
+        // Act
+        PortfolioRisk result =
+            calculator.Calculate(portfolio, market);
+
+        // Assert
+        Assert.Equal(0.0, result.TotalValue);
+        Assert.Equal(0.0, result.TotalGreeks.Delta);
+        Assert.Equal(0.0, result.TotalGreeks.Gamma);
+        Assert.Equal(0.0, result.TotalGreeks.Vega);
+        Assert.Equal(0.0, result.TotalGreeks.Theta);
+        Assert.Equal(0.0, result.TotalGreeks.Rho);
+
+        Assert.Equal(4, result.Positions.Count);
+
+        for (int i = 0; i < positions.Length; i++)
+        {
+            Assert.Same(positions[i], result.Positions[i].Position);
+        }
+    }
 }

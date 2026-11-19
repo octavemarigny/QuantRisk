@@ -56,6 +56,7 @@ public sealed class PortfolioRiskCalculator
         return new PositionRisk(position, value, greeks);
     }
 
+    
     public PortfolioRisk Calculate(
         Portfolio portfolio,
         BlackScholesMarketData marketData)
@@ -66,45 +67,79 @@ public sealed class PortfolioRiskCalculator
         var positionRisks = new List<PositionRisk>(
             portfolio.Positions.Count);
 
-        var totalValue = new NeumaierAccumulator();
-        var totalDelta = new NeumaierAccumulator();
-        var totalGamma = new NeumaierAccumulator();
-        var totalVega = new NeumaierAccumulator();
-        var totalTheta = new NeumaierAccumulator();
-        var totalRho = new NeumaierAccumulator();
-
         foreach (Position position in portfolio.Positions)
         {
-            PositionRisk risk = Calculate(position, marketData);
-
-            positionRisks.Add(risk);
-
-            // Compensated aggregation
-            totalValue.Add(risk.Value);
-            totalDelta.Add(risk.Greeks.Delta);
-            totalGamma.Add(risk.Greeks.Gamma);
-            totalVega.Add(risk.Greeks.Vega);
-            totalTheta.Add(risk.Greeks.Theta);
-            totalRho.Add(risk.Greeks.Rho);
+            positionRisks.Add(Calculate(position, marketData));
         }
 
         var totalGreeks = new BlackScholesGreeks(
-            totalDelta.Total,
-            totalGamma.Total,
-            totalVega.Total,
-            totalTheta.Total,
-            totalRho.Total);
+            Delta: SumBalanced(positionRisks.Select(x => x.Greeks.Delta)),
+            Gamma: SumBalanced(positionRisks.Select(x => x.Greeks.Gamma)),
+            Vega: SumBalanced(positionRisks.Select(x => x.Greeks.Vega)),
+            Theta: SumBalanced(positionRisks.Select(x => x.Greeks.Theta)),
+            Rho: SumBalanced(positionRisks.Select(x => x.Greeks.Rho)));
 
         return new PortfolioRisk(
-            totalValue.Total,
+            SumBalanced(positionRisks.Select(x => x.Value)),
             totalGreeks,
             positionRisks);
+    }
+    
+    private static double SumBalanced(IEnumerable<double> values)
+    {
+        var positives = new Queue<double>();
+        var negatives = new Queue<double>();
+
+        foreach (double value in values)
+        {
+            if (!double.IsFinite(value))
+            {
+                throw new ArithmeticException(
+                    "Cannot aggregate non-finite values.");
+            }
+
+            if (value >= 0.0)
+            {
+                positives.Enqueue(value);
+            }
+            else
+            {
+                negatives.Enqueue(value);
+            }
+        }
+
+        var accumulator = new NeumaierAccumulator();
+
+        while (positives.Count > 0 || negatives.Count > 0)
+        {
+            double next;
+
+            // Prefer contributions opposite to the running sum
+            // to avoid unnecessary intermediate overflow.
+            if (accumulator.RunningSum >= 0.0)
+            {
+                next = negatives.Count > 0
+                    ? negatives.Dequeue()
+                    : positives.Dequeue();
+            }
+            else
+            {
+                next = positives.Count > 0
+                    ? positives.Dequeue()
+                    : negatives.Dequeue();
+            }
+
+            accumulator.Add(next);
+        }
+
+        return accumulator.Total;
     }
     
     private struct NeumaierAccumulator
     {
         private double _sum;
         private double _compensation;
+        public double RunningSum => _sum;
 
         public void Add(double value)
         {

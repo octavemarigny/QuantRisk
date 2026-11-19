@@ -342,14 +342,19 @@ The engine checks that:
 
 - Individual position values remain finite.
 - Quantity-scaled Greeks remain finite.
-- Intermediate portfolio sums remain finite.
-- Aggregated portfolio results remain finite.
+- Portfolio aggregation does not produce non-finite intermediate results.
+- Final portfolio values and aggregated Greeks remain finite.
 
-An `ArithmeticException` is thrown if a calculation produces a non-finite result.
+Portfolio aggregation combines two techniques to improve numerical robustness:
 
-These checks detect arithmetic overflow but do not guarantee perfect floating-point summation accuracy.
+- **Sign-balanced ordering:** positive and negative contributions are interleaved to reduce the risk of intermediate overflow when large opposing positions cancel each other.
+- **Neumaier compensated summation:** rounding errors are compensated to preserve small residual exposures that could otherwise be lost when aggregating large positions.
 
-Portfolio aggregation uses Neumaier compensated summation to reduce floating-point rounding errors, particularly when large offsetting positions coexist with small residual exposures. This improves accuracy but does not eliminate all numerical errors.
+The original position order is preserved in the portfolio risk breakdown.
+
+An `ArithmeticException` is thrown when an arithmetic operation produces a non-finite result.
+
+These techniques reduce floating-point rounding errors and unnecessary intermediate overflow, but do not guarantee exact results for every combination of finite double-precision values.
 
 ### Current limitations
 
