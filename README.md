@@ -349,7 +349,7 @@ An `ArithmeticException` is thrown if a calculation produces a non-finite result
 
 These checks detect arithmetic overflow but do not guarantee perfect floating-point summation accuracy.
 
-Portfolio aggregation currently uses ordinary double-precision addition.
+Portfolio aggregation uses Neumaier compensated summation to reduce floating-point rounding errors, particularly when large offsetting positions coexist with small residual exposures. This improves accuracy but does not eliminate all numerical errors.
 
 ### Current limitations
 

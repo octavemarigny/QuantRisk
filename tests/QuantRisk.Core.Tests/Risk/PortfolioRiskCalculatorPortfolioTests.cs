@@ -223,4 +223,72 @@ public class PortfolioRiskCalculatorPortfolioTests
 
         Assert.Single(result.Positions);
     }
+    
+    
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Calculate_LargeOffsettingPositions_PreservesResidualRisk(
+        bool residualLast)
+    {
+        // Arrange
+        const double largeQuantity = 36028797018963968.0; // 2^55
+
+        var option = new EuropeanOption(
+            OptionType.Call, 100.0, 1.0);
+
+        var market = new BlackScholesMarketData(
+            100.0, 0.0, 0.20);
+
+        Position[] positions = residualLast
+            ?
+            [
+                new Position(option, largeQuantity),
+                new Position(option, -largeQuantity),
+                new Position(option, 1.0)
+            ]
+            :
+            [
+                new Position(option, largeQuantity),
+                new Position(option, 1.0),
+                new Position(option, -largeQuantity)
+            ];
+
+        var portfolio = new Portfolio(positions);
+        var calculator = new PortfolioRiskCalculator(_pricer);
+
+        // Independent expected result: one option unit
+        PositionRisk expected = calculator.Calculate(
+            new Position(option, 1.0),
+            market);
+
+        // Act
+        PortfolioRisk actual = calculator.Calculate(
+            portfolio, market);
+
+        // Assert
+        Assert.Equal(expected.Value, actual.TotalValue);
+
+        Assert.Equal(
+            expected.Greeks.Delta,
+            actual.TotalGreeks.Delta);
+
+        Assert.Equal(
+            expected.Greeks.Gamma,
+            actual.TotalGreeks.Gamma);
+
+        Assert.Equal(
+            expected.Greeks.Vega,
+            actual.TotalGreeks.Vega);
+
+        Assert.Equal(
+            expected.Greeks.Theta,
+            actual.TotalGreeks.Theta);
+
+        Assert.Equal(
+            expected.Greeks.Rho,
+            actual.TotalGreeks.Rho);
+
+        Assert.Equal(3, actual.Positions.Count);
+    }
 }

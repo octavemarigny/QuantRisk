@@ -66,51 +66,92 @@ public sealed class PortfolioRiskCalculator
         var positionRisks = new List<PositionRisk>(
             portfolio.Positions.Count);
 
-        double totalValue = 0.0;
-        double totalDelta = 0.0;
-        double totalGamma = 0.0;
-        double totalVega = 0.0;
-        double totalTheta = 0.0;
-        double totalRho = 0.0;
+        var totalValue = new NeumaierAccumulator();
+        var totalDelta = new NeumaierAccumulator();
+        var totalGamma = new NeumaierAccumulator();
+        var totalVega = new NeumaierAccumulator();
+        var totalTheta = new NeumaierAccumulator();
+        var totalRho = new NeumaierAccumulator();
 
         foreach (Position position in portfolio.Positions)
         {
-            // Reuse position-level valuation
             PositionRisk risk = Calculate(position, marketData);
 
             positionRisks.Add(risk);
 
-            // Aggregate value and Greeks
-            totalValue += risk.Value;
-            totalDelta += risk.Greeks.Delta;
-            totalGamma += risk.Greeks.Gamma;
-            totalVega += risk.Greeks.Vega;
-            totalTheta += risk.Greeks.Theta;
-            totalRho += risk.Greeks.Rho;
-
-            // Detect overflow during aggregation
-            if (!double.IsFinite(totalValue)
-                || !double.IsFinite(totalDelta)
-                || !double.IsFinite(totalGamma)
-                || !double.IsFinite(totalVega)
-                || !double.IsFinite(totalTheta)
-                || !double.IsFinite(totalRho))
-            {
-                throw new ArithmeticException(
-                    "Portfolio aggregation contains non-finite results.");
-            }
+            // Compensated aggregation
+            totalValue.Add(risk.Value);
+            totalDelta.Add(risk.Greeks.Delta);
+            totalGamma.Add(risk.Greeks.Gamma);
+            totalVega.Add(risk.Greeks.Vega);
+            totalTheta.Add(risk.Greeks.Theta);
+            totalRho.Add(risk.Greeks.Rho);
         }
 
         var totalGreeks = new BlackScholesGreeks(
-            totalDelta,
-            totalGamma,
-            totalVega,
-            totalTheta,
-            totalRho);
+            totalDelta.Total,
+            totalGamma.Total,
+            totalVega.Total,
+            totalTheta.Total,
+            totalRho.Total);
 
         return new PortfolioRisk(
-            totalValue,
+            totalValue.Total,
             totalGreeks,
             positionRisks);
+    }
+    
+    private struct NeumaierAccumulator
+    {
+        private double _sum;
+        private double _compensation;
+
+        public void Add(double value)
+        {
+            if (!double.IsFinite(value))
+            {
+                throw new ArithmeticException(
+                    "Cannot aggregate a non-finite value.");
+            }
+
+            double next = _sum + value;
+
+            if (!double.IsFinite(next))
+            {
+                throw new ArithmeticException(
+                    "Portfolio aggregation overflowed.");
+            }
+
+            // Neumaier compensated summation
+            double correction =
+                Math.Abs(_sum) >= Math.Abs(value)
+                    ? (_sum - next) + value
+                    : (value - next) + _sum;
+
+            _compensation += correction;
+            _sum = next;
+
+            if (!double.IsFinite(_compensation))
+            {
+                throw new ArithmeticException(
+                    "Portfolio compensation overflowed.");
+            }
+        }
+
+        public double Total
+        {
+            get
+            {
+                double result = _sum + _compensation;
+
+                if (!double.IsFinite(result))
+                {
+                    throw new ArithmeticException(
+                        "Portfolio total is not finite.");
+                }
+
+                return result;
+            }
+        }
     }
 }
